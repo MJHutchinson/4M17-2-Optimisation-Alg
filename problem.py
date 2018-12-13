@@ -26,17 +26,23 @@ for i in range(0, len(xx1)):
         f_eval[i, j] = f([xx1[i, j], xx2[i, j]])
 
 
+def bound(x):
+    x[x>LIM] = LIM
+    x[x<-LIM] = -LIM
+    return x
+
+
 def plot_points(points):
-    plt.contourf(xx1, xx2, f_eval, zdir='z', offset=np.min(f_eval), cmap=cm.coolwarm)
+    plt.contourf(xx1, xx2, f_eval, cmap=cm.coolwarm)
     plt.colorbar()
 
-    plt.scatter(*points, c='m')
+    plt.scatter(*points, c='m', )
 
     plt.show()
 
 
 def plot_walk(points):
-    plt.contourf(xx1, xx2, f_eval, zdir='z', offset=np.min(f_eval), cmap=cm.coolwarm)
+    plt.contourf(xx1, xx2, f_eval, cmap=cm.coolwarm)
     plt.colorbar()
 
     plt.plot(*points, c='m')

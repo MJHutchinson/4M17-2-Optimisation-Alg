@@ -2,12 +2,17 @@ from problem import *
 import matplotlib.pyplot as plt
 
 DIM = 2  # Problem dimensions
+
 INITIAL_T_PROB = 0.8  # Initial probability that solution should be accepted
-MAX_CHANGE = 100  # Maximum change of variable in single step
 T_EST_SAMPLES = 100  # Number of samples to use to find initial T
+USE_BEST = True # If to use the best x found in the initialisation of T as a starting point
+
+UPDATE_RULE = 'Simple' # 'Simple', 'Parks'
+MAX_CHANGE = 1000  # Maximum change of variable in single step
 
 L_K = 100  # Markov chain length
 ETA_MIN = 0.6  # Acceptance proportion of chain to finish anneal
+ACCEPTANCE_BREAKOUT = 0.08  # Threshold of accepted to tested for breaking out early
 
 ANNEALING = 'Kirkpatrick'   # 'Kirkpatrick', 'Huang'
 ALPHA = 0.95  # Kirkpatrick et al. [1982] Exponential cooling
@@ -30,7 +35,7 @@ def estimate_initial_temperature(num_evals):
     df_buffer = []
 
     for i in range(num_evals):
-        x_new = gen_x_simple(x_curr)
+        x_new = update_x_simple(x_curr)
         f_new = f(x_new)
 
         if f_new - f_curr > 0:
@@ -52,7 +57,20 @@ def estimate_initial_temperature(num_evals):
     return T_mean, T_std, x_best, f_best
 
 
-def gen_x_simple(x):
+def kirkpatrick_anneal(T):
+    return T * ALPHA
+
+
+def huang_anneal(T, f_acc_curr):
+    if len(f_acc_curr) > 1:
+        sigma = np.std(f_acc_curr)
+        alpha = max(0.5, np.exp(-(0.7 * T) / sigma))
+    else:
+        alpha = 0.5
+    return T * alpha
+
+
+def update_x_simple(x):
     C = MAX_CHANGE * np.ones(DIM)
     u = np.random.uniform(-1, 1, DIM)
     x_next = x + C * u  # element-wise multiplication
@@ -80,8 +98,14 @@ def search():
     T_mean, T_std, x_start, f_start = estimate_initial_temperature(T_EST_SAMPLES)
 
     T = T_mean
-    x_best = np.random.uniform(-LIM, LIM, DIM)  # x_start
-    f_best = f(x_best)  # f_start
+
+    if USE_BEST:
+        x_best = x_start
+        f_best = f_start
+    else:
+        x_best = np.random.uniform(-LIM, LIM, DIM)  # x_start
+        f_best = f(x_best)  # f_start
+
     x_curr = x_best
     f_curr = f_best
     evals += T_EST_SAMPLES
@@ -107,22 +131,22 @@ def search():
 
             ## Annealing logic
             if ANNEALING == 'Kirkpatrick':
-                T = T * ALPHA
+                T = kirkpatrick_anneal(T)
             elif ANNEALING == 'Huang':
-                if len(f_acc_curr) > 1:
-                    sigma = np.std(f_acc_curr)
-                    alpha = max(0.5, np.exp( -(0.7 * T)/sigma))
-                else:
-                    alpha = 0.5
-                T = T * alpha
+                T = huang_anneal(T, f_acc_curr)
             else:
                 raise ValueError('Please select a valid Annealing method')
 
             l_curr = 0
             eta_curr = 0
             f_acc_curr = []
+            found_best_curr = False
 
-        x_next = gen_x_simple(x_curr)
+            if not found_best_curr and acc/evals < ACCEPTANCE_BREAKOUT:
+                break
+
+
+        x_next = update_x_simple(x_curr)
 
         if (x_next > LIM).any() | (x_next < -LIM).any():
             continue
@@ -194,7 +218,7 @@ if __name__ == '__main__':
     plt.plot(acc_hist)
     plt.show()
 
-    plt.plot(T_hist)
+    plt.semilogy(T_hist)
     plt.show()
 
     plt.plot(f_hist[acc_hist])
@@ -210,3 +234,9 @@ if __name__ == '__main__':
 
     plot_points(x_acc[int(0.7 * acc):].transpose())
     plot_points(x_acc[int(0.99 * acc):].transpose())
+
+    Ts = np.unique(T_hist)
+
+    for T in Ts:
+        accepted = x_hist[(T_hist == T) & acc_hist]
+        plot_points(accepted.T)
